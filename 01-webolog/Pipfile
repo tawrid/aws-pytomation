@@ -6,6 +6,10 @@ verify_ssl = true
 [dev-packages]
 boto3 = "*"
 click = "*"
+pycodestyle = "*"
+pydocstyle = "*"
+pylint = "*"
+pyflakes = "*"
 
 [packages]
 boto3 = "*"
