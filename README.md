@@ -12,3 +12,4 @@ Webolog current has the following features:
 - List content of a bucket
 - Create and Setup a new bucket
 - Sync the local files and directory to S3
+- AWS profile name with --profile <profile_name> option

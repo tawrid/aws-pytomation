@@ -9,20 +9,27 @@ The script manages AWS S3:
   - Lists Bucket objects.
   - Syncs the website files from local directory.
 """
-
+import boto3
 import click
 
-import boto3
 from bucket import BucketManager
 
-SESSION = boto3.Session(profile_name='python_automation')
-BUCKET_MANAGER = BucketManager(SESSION)
+SESSION = None
+BUCKET_MANAGER = None
 
 
 @click.group()
-def cli():
+@click.option("--profile", default=None,
+              help="Use a given AWS profile")
+def cli(profile):
     """Webolog deploy website to AWS S3."""
-    # pass
+    global SESSION, BUCKET_MANAGER
+
+    session_cfg = {}
+    if profile:
+        session_cfg['profile_name'] = profile
+    SESSION = boto3.Session(**session_cfg)
+    BUCKET_MANAGER = BucketManager(SESSION)
 
 
 @cli.command("list-buckets-objects")
@@ -59,6 +66,9 @@ def setup_bucket(bucket_name):
 def sync(pathname, bucket_name):
     """Sync contents of PATHNAME to BUCKET."""
     BUCKET_MANAGER.sync_file(pathname, bucket_name)
+    bucket_url = BUCKET_MANAGER.get_bucket_url(
+        BUCKET_MANAGER.s3.Bucket(bucket_name))
+    print(bucket_url)
     # return
 
 
