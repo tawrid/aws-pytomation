@@ -2,6 +2,8 @@ import boto3
 import click
 from botocore.exceptions import ClientError
 import json
+from pathlib import Path
+import mimetypes
 
 session = boto3.Session(profile_name='python_automation')
 s3 = session.resource('s3')
@@ -106,6 +108,37 @@ def setup_bucket(bucket):
     #         print("Unexpected error: %s" % ce)
     return
 
+def upload_file(s3_bucket, path, key):
+    content_type = mimetypes.guess_type(key)[0] or 'text/plain'
+    try:
+        s3_bucket.upload_file(
+            path,
+            key,
+            ExtraArgs={
+                'ContentType': content_type
+            }
+        )
+    except ClientError as ce:
+        if ce.response['Error']['Code'] == 'ParamValidationError':
+            print("Error occured while creating website {0}".format(ce))
+        else:
+             print("Unexpected error: %s" % ce)
+    return
+
+@cli.command('sync')
+@click.argument('pathname', type=click.Path(exists=True))
+@click.argument('bucket')
+def sync(pathname, bucket):
+    "Sync contents of PATHNAME to BUCKET"
+    root = Path(pathname).expanduser().resolve()
+    s3_bucket = s3.Bucket(bucket)
+
+    def handle_directory(target):
+        for p in target.iterdir():
+            if p.is_dir(): handle_directory(p)
+            if p.is_file(): upload_file(s3_bucket, str(p), str(p.relative_to(root)))
+            # if p.is_file(): print("Path: {}\n Key: {}\n".format(p, p.relative_to(root)))
+    handle_directory(root)
 
 if __name__ == '__main__':
     cli()
