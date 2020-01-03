@@ -5,17 +5,30 @@ import json
 
 import mimetypes
 from pathlib import Path
+
+import boto3
 from botocore.exceptions import ClientError
+from hashlib import md5
+
+from functools import reduce
 
 import util
 
 
 class BucketManager:
     """Manage an S3 Bucket."""
-
+    CHUNK_SIZE = 8388608
     def __init__(self, session):
         """Create BucketManager Object."""
-        self.s3 = session.resource('s3')
+        self.session = session
+        self.s3 = self.session.resource('s3')
+        self.manifest = {}
+        self.transfer_config = boto3.s3.transfer.TransferConfig(
+            multipart_chunksize = self.CHUNK_SIZE,
+            multipart_threshold = self.CHUNK_SIZE
+        )
+
+
 
     def get_region_name(self, bucket):
         """Get the bucket's region name."""
@@ -37,10 +50,20 @@ class BucketManager:
         """List all S3 buckets Objects."""
         return self.s3.Bucket(bucket_name).objects.all()
 
-    def init_bucket(self, session, bucket_name):
+    def load_manifest(self, bucket):
+        """Load manifest for caching purposes."""
+        paginator = self.s3.meta.client.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=bucket.name):
+            # print("Page is {}".format(page))
+            for obj in page.get('Contents', []):
+                self.manifest[obj['Key']] = obj['ETag']
+
+
+
+    def init_bucket(self, bucket_name):
         """Initialize the S3 Bucket."""
         s3_bucket = None
-        region = session.region_name
+        region = self.session.region_name
         try:
             if region == 'us-east-1':
                 s3_bucket = self.s3.create_bucket(Bucket=bucket_name)
@@ -105,16 +128,46 @@ class BucketManager:
         # return
 
     @staticmethod
-    def upload_file(s3_bucket, path, key):
+    def has_data(data):
+        """Generate Hash."""
+        hash = md5()
+        hash.update(data)
+        return hash
+
+    def gen_etag(self, path):
+        """Generate ETag."""
+        hashes = []
+        with open(path, 'rb') as file:
+            while True:
+                data = file.read(self.CHUNK_SIZE)
+                if not data:
+                    break
+                hashes.append(self.has_data(data))
+        if not hashes:
+            return
+        elif len(hashes) == 1:
+            return '"{}"'.format(hashes[0].hexdigest())
+        else:
+            hash = self.has_data(reduce(lambda x, y: x + y, (h.digest() for h in hashes)))
+            return '"{}-{}"'.format(hash.hexdigest(), len(hashes))
+
+    @staticmethod
+    def upload_file(self, s3_bucket, path, key_path):
         """Upload file to the bucket."""
-        content_type = mimetypes.guess_type(key)[0] or 'text/plain'
+        content_type = mimetypes.guess_type(key_path)[0] or 'text/plain'
+        etag = self.gen_etag(path)
+        if self.manifest.get(key_path, '') == etag:
+            print("Skipping {}, ETAG chunk.....".format(key_path))
+            return
+
         try:
             s3_bucket.upload_file(
                 path,
-                key,
+                key_path,
                 ExtraArgs={
                     'ContentType': content_type
-                }
+                },
+                Config = self.transfer_config
             )
         except ClientError as error:
             if error.response['Error']['Code'] == 'ParamValidationError':
@@ -125,8 +178,9 @@ class BucketManager:
 
     def sync_file(self, pathname, bucket_name):
         """Sync the file between local and S3 bucket."""
-        root = Path(pathname).expanduser().resolve()
         s3_bucket = self.s3.Bucket(bucket_name)
+        self.load_manifest(s3_bucket)
+        root = Path(pathname).expanduser().resolve()
 
         def handle_directory(target):
             """Handle directory or files."""
@@ -134,7 +188,8 @@ class BucketManager:
                 if path.is_dir():
                     handle_directory(path)
                 if path.is_file():
-                    self.upload_file(
+                     self.upload_file(
+                        self,
                         s3_bucket,
                         str(path),
                         str(path.relative_to(root)))

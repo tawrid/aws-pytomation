@@ -54,7 +54,7 @@ def list_buckets():
 @click.argument('bucket_name')
 def setup_bucket(bucket_name):
     """Create and configure S3 bucket."""
-    s3_bucket = BUCKET_MANAGER.init_bucket(SESSION, bucket_name)
+    s3_bucket = BUCKET_MANAGER.init_bucket(bucket_name)
     BUCKET_MANAGER.create_policy(s3_bucket)
     BUCKET_MANAGER.create_website(s3_bucket)
     # return
