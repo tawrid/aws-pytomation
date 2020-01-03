@@ -13,3 +13,10 @@ Webolog current has the following features:
 - Create and Setup a new bucket
 - Sync the local files and directory to S3
 - AWS profile name with --profile <profile_name> option
+
+
+##02-Monitor-Instance
+This project is to notify Slack users of changes to your AWS account using
+CloudWatch Events
+
+##Features
