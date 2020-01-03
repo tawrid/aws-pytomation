@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Utilities for webotron."""
+"""Utilities for webolog."""
 
 from collections import namedtuple
 

@@ -12,7 +12,7 @@ from hashlib import md5
 
 from functools import reduce
 
-import util
+from webolog  import util
 
 
 class BucketManager:

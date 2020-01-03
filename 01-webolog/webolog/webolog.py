@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 """
 Webolog Deploys websites to AWS automatically.
@@ -12,7 +12,7 @@ The script manages AWS S3:
 import boto3
 import click
 
-from bucket import BucketManager
+from webolog.bucket import BucketManager
 
 SESSION = None
 BUCKET_MANAGER = None
